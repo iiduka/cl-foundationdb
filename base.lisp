@@ -75,9 +75,9 @@
   ((code :reader fdb-error-code :initarg :code)
    (message :reader fdb-error-message :initarg :message))
   (:report (lambda (condition stream)
-             (format stream "error ~S (~D)" 
+             (format stream "error ~S: ~S"
                      (fdb-error-message condition)
-                     (fdb-error-code condition)))))
+                     (fdb-get-error (fdb-error-code condition))))))
 
 (defun check-error (err &optional (format "API error") &rest args)
   (unless (zerop err)
