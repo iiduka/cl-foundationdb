@@ -14,7 +14,7 @@
 (defctype fdb-transaction :pointer)
 
 (defctype fdb-error-t :int)
-(defctype fdb-bool-t :int)
+(defctype fdb-bool-t :boolean)
 
 (defcenum fdb-network-option
   (:fdb-net-option-local-address 10)
@@ -71,7 +71,7 @@
     (code fdb-error-t))
 
 (defcfun "fdb_network_set_option" fdb-error-t
-  (options fdb-network-option)
+  (option fdb-network-option)
   (value (:pointer :uint8))
   (value-length :int))
 
@@ -115,7 +115,7 @@
 
 (defcfun "fdb_future_get_version" fdb-error-t
   (f fdb-future)
-  (out-version (:pointer :uint64)))
+  (out-version (:pointer :int64)))
 
 (defcfun "fdb_future_get_key" fdb-error-t
   (f fdb-future)
