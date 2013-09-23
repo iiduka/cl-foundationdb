@@ -25,6 +25,7 @@
    #:network-start
    #:network-stop
    #:open-database
+   #:transaction-addresses-for-key
    #:transaction-cancel
    #:transaction-clear
    #:transaction-commit

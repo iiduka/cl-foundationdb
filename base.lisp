@@ -392,13 +392,49 @@
                                    begin-key-name begin-key-name-length
                                    end-key-name end-key-name-length))))
 
-(defclass watch-future (future) 
+(defun transaction-add-conflict-range (transaction begin-key end-key
+                                       &optional (type :write))
+  (with-foreign-bytes (begin-key-name begin-key-name-length (key-bytes begin-key))
+    (with-foreign-bytes (end-key-name end-key-name-length (key-bytes end-key))
+      (fdb-transaction-add-conflict-range (transaction-fdb-transaction transaction)
+                                          begin-key-name begin-key-name-length
+                                          end-key-name end-key-name-length
+                                          type))))
+
+(defclass no-value-future (future) 
   ())
 
-(defmethod future-ready-value ((future watch-future)) t)
+(defmethod future-ready-value ((future no-value-future)) t)
 
 (defun transaction-watch (transaction key)
   (let ((fdb-future (with-foreign-bytes (key-name key-name-length (key-bytes key))
                       (fdb-transaction-watch (transaction-fdb-transaction transaction)
                                              key-name key-name-length))))
-    (make-instance 'watch-future :fdb-future fdb-future)))
+    (make-instance 'no-value-future :fdb-future fdb-future)))
+
+(defclass string-array-future (future) 
+  ())
+
+(defmethod future-ready-value ((future string-array-future))
+  (with-foreign-objects ((pstrings '(:pointer (:pointer :string)))
+                         (pcount :int))
+    (check-error (fdb-future-get-string-array (future-fdb-future future) pstrings pcount)
+                 "getting value")
+    (let* ((count (mem-ref pcount :int))
+           (array (mem-ref pstrings :pointer))
+           (strings (make-array count :element-type 'string :initial-element "")))
+      (dotimes (i count)
+        (setf (aref strings i) (foreign-string-to-lisp (mem-aref array :pointer i)
+                                                       :encoding *foreign-encoding*)))
+      (fdb-future-release-memory (future-fdb-future future))
+      strings)))
+
+(defun transaction-addresses-for-key (transaction key)
+  (let ((fdb-future (with-foreign-bytes (key-name key-name-length (key-bytes key))
+                      (fdb-transaction-get-addresses-for-key (transaction-fdb-transaction transaction)
+                                                             key-name key-name-length))))
+    (make-instance 'string-array-future :fdb-future fdb-future)))
+  
+;fdb_transaction_get_key
+;fdb_transaction_get_range
+;fdb_transaction_atomic_op

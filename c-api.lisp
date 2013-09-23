@@ -17,55 +17,55 @@
 (defctype fdb-bool-t :boolean)
 
 (defcenum fdb-network-option
-  (:fdb-net-option-local-address 10)
-  (:fdb-net-option-cluster-file 20)
-  (:fdb-net-option-trace-enable 30))
+  (:local-address 10)
+  (:cluster-file 20)
+  (:trace-enable 30))
 
 (defcenum fdb-cluster-option)
 
 (defcenum fdb-database-option
-  (:fdb-db-option-location-cache-size 10)
-  (:fdb-db-option-max-watches 20)
-  (:fdb-db-option-machine-id 21)
-  (:fdb-db-option-datacenter-id 22))
+  (:location-cache-size 10)
+  (:max-watches 20)
+  (:machine-id 21)
+  (:datacenter-id 22))
 
 (defcenum fdb-transaction-option
-  (:fdb-tr-option-causal-write-risky 10)
-  (:fdb-tr-option-causal-read-risky 20)
-  (:fdb-tr-option-causal-read-disable 21)
-  (:fdb-tr-option-next-write-no-write-conflict-range 30)
-  (:fdb-tr-option-check-writes-enable 50)
-  (:fdb-tr-option-read-your-writes-disable 51)
-  (:fdb-tr-option-read-ahead-disable 52)
-  (:fdb-tr-option-durability-datacenter 110)
-  (:fdb-tr-option-durability-risky 120)
-  (:fdb-tr-option-durability-dev-null-is-web-scale 130)
-  (:fdb-tr-option-priority-system-immediate 200)
-  (:fdb-tr-option-priority-batch 201)
-  (:fdb-tr-option-initialize-new-database 300)
-  (:fdb-tr-option-access-system-keys 301)
-  (:fdb-tr-option-debug-dump 400)
-  (:fdb-tr-option-timeout 500)
-  (:fdb-tr-option-retry-limit 501))
+  (:causal-write-risky 10)
+  (:causal-read-risky 20)
+  (:causal-read-disable 21)
+  (:next-write-no-write-conflict-range 30)
+  (:check-writes-enable 50)
+  (:read-your-writes-disable 51)
+  (:read-ahead-disable 52)
+  (:durability-datacenter 110)
+  (:durability-risky 120)
+  (:durability-dev-null-is-web-scale 130)
+  (:priority-system-immediate 200)
+  (:priority-batch 201)
+  (:initialize-new-database 300)
+  (:access-system-keys 301)
+  (:debug-dump 400)
+  (:timeout 500)
+  (:retry-limit 501))
 
 (defcenum fdb-streaming-mode
-  (:fdb-streaming-mode-want-all -2)
-  (:fdb-streaming-mode-iterator -1)
-  (:fdb-streaming-mode-exact 0)
-  (:fdb-streaming-mode-small 1)
-  (:fdb-streaming-mode-medium 2)
-  (:fdb-streaming-mode-large 3)
-  (:fdb-streaming-mode-serial 4))
+  (:want-all -2)
+  (:iterator -1)
+  (:exact 0)
+  (:small 1)
+  (:medium 2)
+  (:large 3)
+  (:serial 4))
 
 (defcenum fdb-mutation-type
-  (:fdb-mutation-type-add 2)
-  (:fdb-mutation-type-and 6)
-  (:fdb-mutation-type-or 7)
-  (:fdb-mutation-type-xor 8))
+  (:add 2)
+  (:and 6)
+  (:or 7)
+  (:xor 8))
 
 (defcenum fdb-conflict-range-type
-  (:fdb-conflict-range-type-read 0)
-  (:fdb-conflict-range-type-write 1))
+  (:read 0)
+  (:write 1))
 
 (defcfun "fdb_get_error" :string
     (code fdb-error-t))
@@ -87,13 +87,13 @@
   (value :pointer)
   (value-length :int))
 
-(defcfun "fdb_future_cancel" fdb-error-t
+(defcfun "fdb_future_cancel" :void
   (future fdb-future))
 
-(defcfun "fdb_future_release_memory" fdb-error-t
+(defcfun "fdb_future_release_memory" :void
   (future fdb-future))
 
-(defcfun "fdb_future_destroy" fdb-error-t
+(defcfun "fdb_future_destroy" :void
   (future fdb-future))
 
 (defcfun "fdb_future_block_until_ready" fdb-error-t
