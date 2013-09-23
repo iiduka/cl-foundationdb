@@ -14,6 +14,10 @@
    #:database-set-option
    #:fdb-error
    #:future-block-until-ready
+   #:future-callback
+   #:future-cancel
+   #:future-destroy
+   #:future-ready-p
    #:future-value
    #:key-bytes
    #:make-cluster
@@ -34,6 +38,7 @@
    #:transaction-set
    #:transaction-set-option
    #:transaction-snapshot
+   #:transaction-watch
    #:value-bytes
    #:with-transaction
 ))

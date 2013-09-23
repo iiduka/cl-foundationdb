@@ -238,7 +238,13 @@
   `(with-transaction-internal #'(lambda (,transaction) . ,body) ,database . ,args))
       
 (defclass future ()
-  ((fdb-future :accessor future-fdb-future :initarg :fdb-future)))
+  ((fdb-future :accessor future-fdb-future :initarg :fdb-future)
+   (callback :accessor future-callback-internal :initform nil)
+   (callback-id :accessor future-callback-id :initform nil)
+   (error :accessor future-error :initform nil)))
+
+(defun future-cancel (future)
+  (fdb-future-cancel (future-fdb-future future)))
 
 (defun future-block-until-ready (future)
   ;; TODO: Is there some way that plays nicer with Lisp than blocking
@@ -249,12 +255,76 @@
     (check-error (fdb-future-get-error (future-fdb-future future)) 
                  "future result")))
 
+(defun future-ready-p (future)
+  (fdb-future-is-ready (future-fdb-future future)))
+
+(defvar *callback-id-counter* 0)
+(defvar *callback-registry* (make-hash-table))
+
+#+sbcl
+(defvar *callback-registry-mutex* (make-mutex :name "FoundationDB callback registry"))
+
+(defmacro with-callback-registry-lock (&body body)
+  #+sbcl
+  `(with-mutex (*callback-registry-mutex*)
+    . ,body)
+  #-(or sbcl)
+  `(progn . ,body))
+
+(defun callback-register (callback)
+  (with-callback-registry-lock
+    (let ((id (incf *callback-id-counter*)))
+      (setf (gethash id *callback-registry*) callback)
+      id)))
+
+(defun callback-deregister (id)
+  (with-callback-registry-lock
+    (remhash id *callback-registry*)))
+
+(defcallback future-callback :void ((fdb-future fdb-future) 
+                                    (callback-parameter :pointer))
+  (let ((future (with-callback-registry-lock
+                  (gethash (pointer-address callback-parameter) *callback-registry*))))
+    (unless (null future)
+      (assert (pointer-eq fdb-future (future-fdb-future future)))
+      (handler-case
+          (funcall (future-callback-internal future) future)
+        (error (error) (setf (future-error future) error))))))
+               
+(defun future-callback (future)
+  (future-callback-internal future))
+
+(defun future-set-callback (future callback)
+  (setf (future-callback-internal future) callback)
+  (when (null (future-callback-id future))
+    (let ((id (callback-register future)))
+      (setf (future-callback-id future) id)
+      (fdb-future-set-callback (future-fdb-future future) 
+                               (get-callback 'future-callback)
+                               (make-pointer id)))))
+
+(defsetf future-callback future-set-callback)
+
+(defun future-destroy (future)
+  (when (future-fdb-future future)
+    (fdb-future-destroy (future-fdb-future future))
+    (setf (future-callback-internal future) nil)
+    (when (future-callback-id future)
+      (callback-deregister (future-callback-id future))
+      (setf (future-callback-id future) nil))
+    (setf (future-fdb-future future) nil)))
+
 (defgeneric future-ready-value (future)
   (:documentation "Called when future is ready to get its value"))
 
 (defun future-value (future)
-  (future-block-until-ready future)
-  (future-ready-value future))
+  (when (future-error future)
+    (error (prog1 (future-error future) (setf (future-error future) nil))))
+  (unwind-protect
+       (progn
+         (future-block-until-ready future)
+         (future-ready-value future))
+    (future-destroy future)))
 
 (defclass get-future (future) 
   ())
@@ -321,3 +391,14 @@
       (fdb-transaction-clear-range (transaction-fdb-transaction transaction)
                                    begin-key-name begin-key-name-length
                                    end-key-name end-key-name-length))))
+
+(defclass watch-future (future) 
+  ())
+
+(defmethod future-ready-value ((future watch-future)) t)
+
+(defun transaction-watch (transaction key)
+  (let ((fdb-future (with-foreign-bytes (key-name key-name-length (key-bytes key))
+                      (fdb-transaction-watch (transaction-fdb-transaction transaction)
+                                             key-name key-name-length))))
+    (make-instance 'watch-future :fdb-future fdb-future)))
