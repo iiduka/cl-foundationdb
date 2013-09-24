@@ -20,6 +20,11 @@
    #:future-ready-p
    #:future-value
    #:key-bytes
+   #:key-selector
+   #:key-selector-last-less-than
+   #:key-selector-last-less-or-equal
+   #:key-selector-first-greater-than
+   #:key-selector-first-greater-or-equal
    #:make-cluster
    #:network-set-option
    #:network-start
@@ -33,6 +38,7 @@
    #:transaction-committed-version
    #:transaction-destroy
    #:transaction-get
+   #:transaction-key
    #:transaction-range
    #:transaction-read-version
    #:transaction-reset
