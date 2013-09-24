@@ -12,6 +12,7 @@
    #:database-create-transaction
    #:database-destroy
    #:database-set-option
+   #:do-range-query
    #:fdb-error
    #:future-block-until-ready
    #:future-callback
@@ -21,15 +22,22 @@
    #:future-value
    #:key-bytes
    #:key-selector
-   #:key-selector-last-less-than
-   #:key-selector-last-less-or-equal
-   #:key-selector-first-greater-than
+   #:key-selector-add
    #:key-selector-first-greater-or-equal
+   #:key-selector-first-greater-than
+   #:key-selector-last-less-or-equal
+   #:key-selector-last-less-than
+   #:key-successor
    #:make-cluster
+   #:make-range
+   #:make-range-query
+   #:map-range-query
    #:network-set-option
    #:network-start
    #:network-stop
    #:open-database
+   #:range-query
+   #:range-starts-with
    #:transaction-addresses-for-key
    #:transaction-cancel
    #:transaction-clear
@@ -40,6 +48,7 @@
    #:transaction-get
    #:transaction-key
    #:transaction-range
+   #:transaction-range-query-next
    #:transaction-read-version
    #:transaction-reset
    #:transaction-set

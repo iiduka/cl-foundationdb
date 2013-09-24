@@ -253,6 +253,8 @@
   (fdb-future-cancel (future-fdb-future future)))
 
 (defun future-block-until-ready (future)
+  (when (future-error future)
+    (error (prog1 (future-error future) (setf (future-error future) nil))))
   ;; TODO: Is there some way that plays nicer with Lisp than blocking
   ;; in C, like waiting on a semaphore set by a callback?
   (unless (fdb-future-is-ready (future-fdb-future future))
@@ -324,8 +326,6 @@
   (:documentation "Called when future is ready to get its value"))
 
 (defun future-value (future)
-  (when (future-error future)
-    (error (prog1 (future-error future) (setf (future-error future) nil))))
   (unwind-protect
        (progn
          (future-block-until-ready future)
@@ -443,16 +443,19 @@
    (offset :reader key-selector-offset  :initarg :offset)))
 
 (defun key-selector-last-less-than (key)
-  (make-instance 'key-selector :key key :or-equal nil :offset 0))
+  (make-instance 'key-selector :key (key-bytes key) :or-equal nil :offset 0))
 
 (defun key-selector-last-less-or-equal (key)
-  (make-instance 'key-selector :key key :or-equal t :offset 0))
+  (make-instance 'key-selector :key (key-bytes key) :or-equal t :offset 0))
 
 (defun key-selector-first-greater-than (key)
-  (make-instance 'key-selector :key key :or-equal t :offset +1))
+  (make-instance 'key-selector :key (key-bytes key) :or-equal t :offset +1))
 
 (defun key-selector-first-greater-or-equal (key)
-  (make-instance 'key-selector :key key :or-equal nil :offset +1))
+  (make-instance 'key-selector :key (key-bytes key) :or-equal nil :offset +1))
+
+(defun key-selector-add (key-selector offset)
+  (make-instance 'key-selector :key (key-selector-key key-selector) :or-equal (key-selector-or-equal key-selector) :offset (+ (key-selector-offset key-selector) offset)))
 
 (defmacro with-foreign-key-selector ((name name-length or-equal offset) key-selector &body body)
   (let ((ks-var (gensym "KS")))
@@ -483,5 +486,139 @@
                                                 (transaction-snapshot-p transaction)))))
     (make-instance 'key-future :fdb-future fdb-future)))
 
-;fdb_transaction_get_range
+(defclass range ()
+  ((begin-key :reader range-begin-key :initarg :begin-key)
+   (end-key :reader range-end-key :initarg :end-key)))
+
+(defun make-range (begin-key end-key)
+  (make-instance 'range :begin-key begin-key :end-key end-key))
+
+(defun key-successor (bytes)
+  (let ((length (length bytes)))
+    (loop while (and (plusp length) (= (aref bytes (1- length)) #xFF)) do
+      (decf length))
+    (when (zerop length)
+      (error "There is no successor to ~S" bytes))
+    (let ((copy (subseq bytes 0 length)))
+      (incf (aref copy (1- length)))
+      copy)))
+
+(defun range-starts-with (prefix)
+  (let* ((begin (key-bytes prefix))
+         (end (key-successor begin)))
+    (make-range begin end)))
+
+(defgeneric range-key-selectors (begin-key-or-range end-key))
+(defgeneric range-begin-key-selector (key-or-key-selector))
+(defgeneric range-end-key-selector (key-or-key-selector))
+
+(defmethod range-key-selectors (begin end)
+  (values (range-begin-key-selector begin)
+          (range-end-key-selector end)))
+  
+(defmethod range-key-selectors ((range range) (end null))
+  (values (range-begin-key-selector (range-begin-key range))
+          (range-end-key-selector (range-end-key range))))
+
+(defmethod range-begin-key-selector (key) (key-selector-first-greater-or-equal key))
+(defmethod range-end-key-selector (key) (key-selector-first-greater-or-equal key))
+
+(defmethod range-begin-key-selector ((key-selector key-selector)) key-selector)
+(defmethod range-end-key-selector ((key-selector key-selector)) key-selector)
+
+(defclass range-query ()
+  ((begin-key-selector :accessor range-query-begin-key-selector :initarg :begin-key-selector)
+   (end-key-selector :accessor range-query-end-key-selector :initarg :end-key-selector)
+   (limit :reader range-query-limit :initarg :limit :initform 0)
+   (target-bytes :reader range-query-target-bytes :initarg :target-bytez :initform 0)
+   (mode :reader range-query-mode :initarg :mode :initform :iterator)
+   (iteration :accessor range-query-iteration :initform 0)
+   (reverse-p :reader range-query-reverse-p :initarg :reverse :initform nil)
+   (more-p :accessor range-query-more-p :initform t)))
+
+(defun make-range-query (begin &optional end &rest args)
+  (multiple-value-bind (begin-key-selector end-key-selector)
+      (range-key-selectors begin end)
+    (apply #'make-instance 'range-query :begin-key-selector begin-key-selector :end-key-selector end-key-selector args)))
+
+(defclass range-future (future)
+  ((range-query :reader range-future-range-query :initarg :range-query)))
+
+(defmethod future-ready-value ((future range-future))
+  (range-future-ready-map-values 'list #'list future))
+
+(defun range-future-ready-map-values (result-type function future)
+  (with-foreign-objects ((pkv '(:pointer (:struct fdb-key-value)))
+                         (pcount :int)
+                         (pmore 'fdb-bool-t))
+    (check-error (fdb-future-get-keyvalue-array (future-fdb-future future)
+                                                pkv pcount pmore)
+                 "getting key-values")
+    (let* ((kv (mem-ref pkv :pointer))
+           (count (mem-ref pcount :int))
+           (result (if result-type (make-sequence result-type count)))
+           key value)
+      (dotimes (i count)
+        (setq key (foreign-bytes-to-lisp
+                   (foreign-slot-value kv '(:struct fdb-key-value) 'key)
+                   (foreign-slot-value kv '(:struct fdb-key-value) 'key-length))
+              value (foreign-bytes-to-lisp 
+                     (foreign-slot-value kv '(:struct fdb-key-value) 'value)
+                     (foreign-slot-value kv '(:struct fdb-key-value) 'value-length)))
+        (let ((elem (funcall function key value)))
+          (when result
+            (setf (elt result i) elem))
+          (incf-pointer kv (foreign-type-size 'fdb-key-value))))
+      (let ((range-query (range-future-range-query future)))
+        (when (and (setf (range-query-more-p range-query) (mem-ref pmore 'fdb-bool-t))
+                   (not (null key)))
+          (if (range-query-reverse-p range-query)
+              (setf (range-query-end-key-selector range-query)
+                    (key-selector-first-greater-or-equal key))
+              (setf (range-query-begin-key-selector range-query)
+                    (key-selector-first-greater-than key)))))
+      (fdb-future-release-memory (future-fdb-future future))
+      result)))
+
+(defun transaction-range-query-next (transaction range-query)
+  (let ((fdb-future 
+         (with-foreign-key-selector (begin-key-name begin-key-name-length begin-or-equal begin-offset) (range-query-begin-key-selector range-query)
+           (with-foreign-key-selector (end-key-name end-key-name-length end-or-equal end-offset) (range-query-end-key-selector range-query)
+             (fdb-transaction-get-range (transaction-fdb-transaction transaction)
+                                        begin-key-name begin-key-name-length
+                                        begin-or-equal begin-offset
+                                        end-key-name end-key-name-length
+                                        end-or-equal end-offset
+                                        (range-query-limit range-query)
+                                        (range-query-target-bytes range-query)
+                                        (range-query-mode range-query)
+                                        (incf (range-query-iteration range-query))
+                                        (transaction-snapshot-p transaction)
+                                        (range-query-reverse-p range-query))))))
+    (make-instance 'range-future :fdb-future fdb-future :range-query range-query)))
+  
+(defun map-range-query (result-type function transaction &rest args)
+  (let ((range-query (apply #'make-range-query args))
+        (result nil))
+    (loop as future = (transaction-range-query-next transaction range-query)
+          while (not (null future))
+          do
+      (unwind-protect
+           (progn
+             (future-block-until-ready future)
+             (let ((segment (range-future-ready-map-values result-type function future)))
+               (when result-type
+                 (setq result (if (null result) segment (concatenate result-type result segment))))))
+        (future-destroy future)))
+    (when (and result-type (null result))
+      (setq result (make-sequence result-type 0)))
+    result))
+
+(defmacro do-range-query (((key value) &rest args) &body body)
+  `(block nil
+    (map-range-query nil #'(lamdba (,key ,value) . , body) . ,args)))
+    
+(defun range-query (transaction &rest args)
+  (apply #'map-range-query 'list #'list transaction args))
+
 ;fdb_transaction_atomic_op
