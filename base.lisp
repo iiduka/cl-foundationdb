@@ -387,6 +387,14 @@
     (fdb-transaction-clear (transaction-fdb-transaction transaction)
                            key-name key-name-length)))
 
+(defun transaction-atomic-operate (transaction key param operation)
+  (with-foreign-bytes (key-name key-name-length) (key-bytes key)
+    (with-foreign-bytes (param-name param-name-length) (value-bytes param)
+      (fdb-transaction-atomic-op (transaction-fdb-transaction transaction)
+                                  key-name key-name-length
+                                  param-name param-name-length
+                                  operation))))
+
 (defun transaction-clear-range (transaction begin-key end-key)
   (with-foreign-bytes (begin-key-name begin-key-name-length) (key-bytes begin-key)
     (with-foreign-bytes (end-key-name end-key-name-length) (key-bytes end-key)
@@ -529,8 +537,8 @@
 (defclass range-query ()
   ((begin-key-selector :accessor range-query-begin-key-selector :initarg :begin-key-selector)
    (end-key-selector :accessor range-query-end-key-selector :initarg :end-key-selector)
-   (limit :reader range-query-limit :initarg :limit :initform 0)
-   (target-bytes :reader range-query-target-bytes :initarg :target-bytez :initform 0)
+   (limit :accessor range-query-limit :initarg :limit :initform nil)
+   (target-bytes :reader range-query-target-bytes :initarg :target-bytez :initform nil)
    (mode :reader range-query-mode :initarg :mode :initform :iterator)
    (iteration :accessor range-query-iteration :initform 0)
    (reverse-p :reader range-query-reverse-p :initarg :reverse :initform nil)
@@ -569,9 +577,14 @@
           (when result
             (setf (elt result i) elem))
           (incf-pointer kv (foreign-type-size 'fdb-key-value))))
-      (let ((range-query (range-future-range-query future)))
-        (when (and (setf (range-query-more-p range-query) (mem-ref pmore 'fdb-bool-t))
-                   (not (null key)))
+      (let ((range-query (range-future-range-query future))
+            (more-p (mem-ref pmore 'fdb-bool-t)))
+        (when (range-query-limit range-query)
+          (decf (range-query-limit range-query) count)
+          (when (<= (range-query-limit range-query) 0)
+            (setq more-p nil)))
+        (setf (range-query-more-p range-query) more-p)
+        (when (and more-p (not (null key)))
           (if (range-query-reverse-p range-query)
               (setf (range-query-end-key-selector range-query)
                     (key-selector-first-greater-or-equal key))
@@ -589,8 +602,8 @@
                                         begin-or-equal begin-offset
                                         end-key-name end-key-name-length
                                         end-or-equal end-offset
-                                        (range-query-limit range-query)
-                                        (range-query-target-bytes range-query)
+                                        (or (range-query-limit range-query) 0)
+                                        (or (range-query-target-bytes range-query) 0)
                                         (range-query-mode range-query)
                                         (incf (range-query-iteration range-query))
                                         (transaction-snapshot-p transaction)
@@ -620,5 +633,3 @@
     
 (defun range-query (transaction &rest args)
   (apply #'map-range-query 'list #'list transaction args))
-
-;fdb_transaction_atomic_op
