@@ -3,10 +3,17 @@
 (in-package :foundationdb)
 
 (defparameter *fdb-header-version* 100)
+(defvar *version-set* nil)
 
 (defun api-version (version)
-  (check-error (fdb-select-api-version-impl version *fdb-header-version*)
-               "API version"))
+  (cond ((eql *version-set* version) nil)
+        (*version-set*
+         (error "API version already set to ~D" *version-set*))
+        (t
+         (check-error (fdb-select-api-version-impl version *fdb-header-version*)
+                      "API version")
+         (setq *version-set* version)
+         t)))
 
 (define-condition fdb-error (error)
   ((code :reader fdb-error-code :initarg :code)
@@ -20,6 +27,7 @@
   (unless (zerop err)
     (error 'fdb-error :code err :message (apply #'format nil format args))))
 
+;; network-stop is final; it cannot ever be restarted in same process.
 (defvar *network-started* nil)
 
 (defun network-start ()
@@ -72,9 +80,13 @@
 
 (defparameter *db-name* "DB")
 
-(defun open-database (&optional (cluster-file nil) (db-name *db-name*))
+(defun database-open (&optional (cluster-file nil) (db-name *db-name*))
   (network-start)
   (cluster-open-database (make-cluster cluster-file) db-name))
+
+(defun database-close (database)
+  (database-destroy database)
+  (cluster-destroy (database-cluster database)))
 
 (defclass cluster ()
   ((fdb-cluster :reader cluster-fdb-cluster :initarg :fdb-cluster)))
@@ -103,7 +115,8 @@
                  "setting option")))
 
 (defclass database ()
-  ((fdb-database :reader database-fdb-database :initarg :fdb-database)))
+  ((cluster :reader database-cluster :initarg :cluster)
+   (fdb-database :reader database-fdb-database :initarg :fdb-database)))
 
 (defun cluster-open-database (cluster &optional (db-name *db-name*))
   (with-foreign-object (pdatabase 'fdb-database)
@@ -121,7 +134,8 @@
              (check-error (fdb-future-get-database future pdatabase)
                           "database result"))
         (fdb-future-destroy future)))
-    (make-instance 'database :fdb-database (mem-ref pdatabase 'fdb-database))))
+    (make-instance 'database :cluster cluster
+                             :fdb-database (mem-ref pdatabase 'fdb-database))))
 
 (defun database-destroy (database)
   (fdb-database-destroy (database-fdb-database database)))
@@ -568,15 +582,15 @@
            key value)
       (dotimes (i count)
         (setq key (foreign-bytes-to-lisp
-                   (foreign-slot-value kv '(:struct fdb-key-value) 'key)
-                   (foreign-slot-value kv '(:struct fdb-key-value) 'key-length))
+                   (foreign-slot-value kv '(:struct fdb-key-value) 'key-length)
+                   (foreign-slot-value kv '(:struct fdb-key-value) 'key))
               value (foreign-bytes-to-lisp 
-                     (foreign-slot-value kv '(:struct fdb-key-value) 'value)
-                     (foreign-slot-value kv '(:struct fdb-key-value) 'value-length)))
+                     (foreign-slot-value kv '(:struct fdb-key-value) 'value-length)
+                     (foreign-slot-value kv '(:struct fdb-key-value) 'value)))
         (let ((elem (funcall function key value)))
           (when result
-            (setf (elt result i) elem))
-          (incf-pointer kv (foreign-type-size 'fdb-key-value))))
+            (setf (elt result i) elem)))
+        (incf-pointer kv (foreign-type-size '(:struct fdb-key-value))))
       (let ((range-query (range-future-range-query future))
             (more-p (mem-ref pmore 'fdb-bool-t)))
         (when (range-query-limit range-query)
@@ -594,21 +608,22 @@
       result)))
 
 (defun transaction-range-query-next (transaction range-query)
-  (let ((fdb-future 
-         (with-foreign-key-selector (begin-key-name begin-key-name-length begin-or-equal begin-offset) (range-query-begin-key-selector range-query)
-           (with-foreign-key-selector (end-key-name end-key-name-length end-or-equal end-offset) (range-query-end-key-selector range-query)
-             (fdb-transaction-get-range (transaction-fdb-transaction transaction)
-                                        begin-key-name begin-key-name-length
-                                        begin-or-equal begin-offset
-                                        end-key-name end-key-name-length
-                                        end-or-equal end-offset
-                                        (or (range-query-limit range-query) 0)
-                                        (or (range-query-target-bytes range-query) 0)
-                                        (range-query-mode range-query)
-                                        (incf (range-query-iteration range-query))
-                                        (transaction-snapshot-p transaction)
-                                        (range-query-reverse-p range-query))))))
-    (make-instance 'range-future :fdb-future fdb-future :range-query range-query)))
+  (when (range-query-more-p range-query)
+    (let ((fdb-future 
+           (with-foreign-key-selector (begin-key-name begin-key-name-length begin-or-equal begin-offset) (range-query-begin-key-selector range-query)
+             (with-foreign-key-selector (end-key-name end-key-name-length end-or-equal end-offset) (range-query-end-key-selector range-query)
+               (fdb-transaction-get-range (transaction-fdb-transaction transaction)
+                                          begin-key-name begin-key-name-length
+                                          begin-or-equal begin-offset
+                                          end-key-name end-key-name-length
+                                          end-or-equal end-offset
+                                          (or (range-query-limit range-query) 0)
+                                          (or (range-query-target-bytes range-query) 0)
+                                          (range-query-mode range-query)
+                                          (incf (range-query-iteration range-query))
+                                          (transaction-snapshot-p transaction)
+                                          (range-query-reverse-p range-query))))))
+      (make-instance 'range-future :fdb-future fdb-future :range-query range-query))))
   
 (defun map-range-query (result-type function transaction &rest args)
   (let ((range-query (apply #'make-range-query args))
@@ -629,7 +644,7 @@
 
 (defmacro do-range-query (((key value) &rest args) &body body)
   `(block nil
-    (map-range-query nil #'(lamdba (,key ,value) . , body) . ,args)))
+    (map-range-query nil #'(lambda (,key ,value) . , body) . ,args)))
     
-(defun range-query (transaction &rest args)
+(defun transaction-range-query (transaction &rest args)
   (apply #'map-range-query 'list #'list transaction args))

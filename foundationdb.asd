@@ -5,8 +5,13 @@
     :version "0.0.1"
     :license "MIT"
     :depends-on (:cffi :babel)
-    :components ((:file "package")
-                 (:file "c-api" :depends-on ("package"))
-                 (:file "base" :depends-on ("c-api"))))
+    :components
+    ((:module "src"
+      :components ((:file "package")
+                   (:file "c-api" :depends-on ("package"))
+                   (:file "base" :depends-on ("c-api"))))))
 
 (pushnew :foundationdb *features*)
+
+(defmethod asdf:perform ((o asdf:test-op) (c (eql (asdf:find-system :foundationdb))))
+  (asdf:operate 'asdf:test-op :foundationdb-tests))

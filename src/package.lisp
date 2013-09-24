@@ -2,7 +2,7 @@
 
 (defpackage :foundationdb
   (:use #:common-lisp #:cffi
-        #+sbcl :sb-thread)
+        #+sbcl #:sb-thread)
   (:export 
    #:*foreign-encoding*
    #:api-version
@@ -10,7 +10,9 @@
    #:cluster-open-database
    #:cluster-set-option
    #:database-create-transaction
+   #:database-close
    #:database-destroy
+   #:database-open
    #:database-set-option
    #:do-range-query
    #:fdb-error
@@ -35,12 +37,12 @@
    #:network-set-option
    #:network-start
    #:network-stop
-   #:open-database
-   #:range-query
    #:range-starts-with
+   #:transaction-add-conflict-range
    #:transaction-addresses-for-key
    #:transaction-cancel
    #:transaction-clear
+   #:transaction-clear-range
    #:transaction-commit
    #:transaction-commit-or-retry
    #:transaction-committed-version
@@ -48,6 +50,7 @@
    #:transaction-get
    #:transaction-key
    #:transaction-range
+   #:transaction-range-query
    #:transaction-range-query-next
    #:transaction-read-version
    #:transaction-reset

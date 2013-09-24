@@ -81,11 +81,11 @@
 
 (defcfun "fdb_stop_network" fdb-error-t)
 
-(defcstruct fdb-key-value
-  (key :pointer)
-  (key-length :int)
-  (value :pointer)
-  (value-length :int))
+(defcstruct (fdb-key-value :size 24)    ; No way of saying alignment / pack is 4.
+  (key :pointer :offset 0)
+  (key-length :int :offset 8)
+  (value :pointer :offset 12)
+  (value-length :int :offset 20))
 
 (defcfun "fdb_future_cancel" :void
   (future fdb-future))
