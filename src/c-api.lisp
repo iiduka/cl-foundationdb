@@ -3,8 +3,7 @@
 (in-package :foundationdb)
 
 (define-foreign-library libfdb
-  (:unix "libfdb_c.so")
-  (t "libfdb_c"))
+  (t (:default "libfdb_c")))
 
 (use-foreign-library libfdb)
 

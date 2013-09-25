@@ -44,8 +44,8 @@
     (setq *network-started* nil)))
     
 (defun network-start-thread ()
-  #+sbcl (make-thread #'(lambda () (fdb-run-network)) :name "FDB Network")
-  #+ccl (process-run-function "FDB Network" #'(lambda () (fdb-run-network)))
+  #+sbcl (sb-thread:make-thread #'(lambda () (fdb-run-network)) :name "FDB Network")
+  #+ccl (ccl:process-run-function "FDB Network" #'(lambda () (fdb-run-network)))
   #-(or sbcl ccl) (error "Do not know how to run threads on this system")
   )
 
@@ -93,7 +93,10 @@
 
 (defun make-cluster (&optional (cluster-file nil))
   (with-foreign-object (pcluster 'fdb-cluster)
-    (let ((future (fdb-create-cluster (or cluster-file (null-pointer)))))
+    (let ((future (fdb-create-cluster (typecase cluster-file
+                                        (null (null-pointer))
+                                        (pathname (namestring cluster-file))
+                                        (t cluster-file)))))
       (unwind-protect
            (progn
              (check-error (fdb-future-block-until-ready future)
@@ -284,13 +287,18 @@
 (defvar *callback-registry* (make-hash-table))
 
 #+sbcl
-(defvar *callback-registry-mutex* (make-mutex :name "FoundationDB callback registry"))
+(defvar *callback-registry-mutex* (sb-thread:make-mutex :name "FoundationDB callback registry"))
+#+ccl
+(defvar *callback-registry-lock* (ccl:make-lock "FoundationDB callback registry"))
 
 (defmacro with-callback-registry-lock (&body body)
   #+sbcl
-  `(with-mutex (*callback-registry-mutex*)
+  `(sb-thread:with-mutex (*callback-registry-mutex*)
     . ,body)
-  #-(or sbcl)
+  #+ccl
+  `(ccl:with-lock-grabbed (*callback-registry-lock*)
+    . ,body)
+  #-(or sbcl ccl)
   `(progn . ,body))
 
 (defun callback-register (callback)

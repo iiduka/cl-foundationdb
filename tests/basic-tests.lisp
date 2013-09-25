@@ -16,8 +16,8 @@
     (t x)))
 
 (defun background (function)
-  #+sbcl (make-thread function :name "Background")
-  #+ccl (process-run-function "Background" function)
+  #+sbcl (sb-thread:make-thread function :name "Background")
+  #+ccl (ccl:process-run-function "Background" function)
   #-(or sbcl ccl) (error "Do not know how to run threads on this system")
   )
 

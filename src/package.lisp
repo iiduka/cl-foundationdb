@@ -1,8 +1,7 @@
 ;;; -*- Mode: Lisp -*-
 
 (defpackage :foundationdb
-  (:use #:common-lisp #:cffi
-        #+sbcl #:sb-thread)
+  (:use #:common-lisp #:cffi)
   (:export 
    #:*foreign-encoding*
    #:api-version
