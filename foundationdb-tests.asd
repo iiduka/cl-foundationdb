@@ -9,7 +9,8 @@
     ((:module "tests"
       :components ((:file "package")
                    (:file "basic-tests" :depends-on ("package"))
-                   (:file "run-tests" :depends-on ("basic-tests"))))))
+                   (:file "tuple-tests" :depends-on ("basic-tests"))
+                   (:file "run-tests" :depends-on ("basic-tests" "tuple-tests"))))))
 
 (defmethod asdf:perform ((o asdf:test-op) (c (eql (asdf:find-system :foundationdb-tests))))
   (asdf:operate 'asdf:load-op :foundationdb-tests)

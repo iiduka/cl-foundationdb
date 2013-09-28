@@ -11,7 +11,7 @@
 
          (format t "~&Running tests...~%")
          (basic-tests)
-         )
+         (tuple-tests))
     (database-close *db*)
     (setq *db* nil))
   t)

@@ -9,7 +9,9 @@
     ((:module "src"
       :components ((:file "package")
                    (:file "c-api" :depends-on ("package"))
-                   (:file "base" :depends-on ("c-api"))))))
+                   (:file "base" :depends-on ("c-api"))
+                   (:file "tuple" :depends-on ("package"))
+                   (:file "tuple-storage" :depends-on ("tuple" "base"))))))
 
 (pushnew :foundationdb *features*)
 

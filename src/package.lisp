@@ -8,8 +8,8 @@
    #:cluster-destroy
    #:cluster-open-database
    #:cluster-set-option
-   #:database-create-transaction
    #:database-close
+   #:database-create-transaction
    #:database-destroy
    #:database-open
    #:database-set-option
@@ -32,6 +32,7 @@
    #:make-cluster
    #:make-range
    #:make-range-query
+   #:make-tuple
    #:map-range-query
    #:network-set-option
    #:network-start
@@ -57,6 +58,21 @@
    #:transaction-set-option
    #:transaction-snapshot
    #:transaction-watch
+   #:tuple-bytes
+   #:tuple-decode
+   #:tuple-elt
+   #:tuple-encode
+   #:tuple-encode-item
+   #:tuple-encoded-length
+   #:tuple-equalp
+   #:tuple-greaterp
+   #:tuple-length
+   #:tuple-lessp
+   #:tuple-not-equalp
+   #:tuple-not-greaterp
+   #:tuple-not-lessp
+   #:tuple-push
+   #:tuple-subtuple
    #:value-bytes
    #:with-transaction
 ))
