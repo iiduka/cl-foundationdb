@@ -32,12 +32,17 @@
    #:make-cluster
    #:make-range
    #:make-range-query
+   #:make-subspace
    #:make-tuple
    #:map-range-query
    #:network-set-option
    #:network-start
    #:network-stop
    #:range-starts-with
+   #:subspace
+   #:subspace-contains-key-p
+   #:subspace-decode-key
+   #:subspace-encode-key
    #:transaction-add-conflict-range
    #:transaction-addresses-for-key
    #:transaction-cancel
@@ -72,6 +77,7 @@
    #:tuple-not-greaterp
    #:tuple-not-lessp
    #:tuple-push
+   #:tuple-range
    #:tuple-subtuple
    #:value-bytes
    #:with-transaction

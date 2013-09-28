@@ -49,9 +49,17 @@
        (loop for i below (tuple-length tuple) 
              collect (tuple-elt tuple i))))))
 
+(defun subspace-tests ()
+  (let ((subspace (subspace (make-subspace :prefix "stuff") "good")))
+    (let ((key (subspace-encode-key subspace "item")))
+      (assert-equals 'subspace-contains-key-p t (subspace-contains-key-p subspace key))
+      (assert-equals 'subspace-decode-key "item" 
+                     (tuple-elt (subspace-decode-key subspace key) 0)))))
+
 (defun tuple-tests ()
   (encode-decode)
   (encode-many)
   (build-push)
   (subtuple)
-  (tuple-key-value))
+  (tuple-key-value)
+  (subspace-tests))

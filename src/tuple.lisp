@@ -15,6 +15,7 @@
 
 (defmethod print-object ((obj tuple) stream)
   (print-unreadable-object (obj stream :type t)
+    (finish-decoding obj)
     (with-slots (items) obj
       (write items :stream stream))))
       
@@ -104,7 +105,7 @@
   (with-slots (decoding-bytes decoding-index items) tuple
     (loop while (and (not (null decoding-bytes))
                      (or (null limit)
-                         (< (fill-pointer items) limit)))
+                         (<= (fill-pointer items) limit)))
       do (multiple-value-bind (item index)
              (decode decoding-bytes decoding-index)
            (vector-push-extend item items)
