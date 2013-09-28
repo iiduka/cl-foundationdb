@@ -8,6 +8,7 @@
    #:cluster-destroy
    #:cluster-open-database
    #:cluster-set-option
+   #:database
    #:database-close
    #:database-create-transaction
    #:database-destroy
@@ -43,11 +44,12 @@
    #:subspace-contains-key-p
    #:subspace-decode-key
    #:subspace-encode-key
+   #:subspace-range
+   #:transaction
    #:transaction-add-conflict-range
    #:transaction-addresses-for-key
    #:transaction-cancel
    #:transaction-clear
-   #:transaction-clear-range
    #:transaction-commit
    #:transaction-commit-or-retry
    #:transaction-committed-version

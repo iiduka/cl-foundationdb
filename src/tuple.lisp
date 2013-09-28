@@ -18,7 +18,14 @@
     (finish-decoding obj)
     (with-slots (items) obj
       (write items :stream stream))))
-      
+
+(defun copy-tuple (tuple)
+  (finish-decoding tuple)
+  (with-slots (items) tuple
+    (make-instance 'tuple :items (make-array (length items) 
+                                             :initial-contents items
+                                             :fill-pointer t :adjustable t))))
+
 (defun tuple-push (tuple item)
   (finish-decoding tuple)
   (with-slots (items bytes) tuple

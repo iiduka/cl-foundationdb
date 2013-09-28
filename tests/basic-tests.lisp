@@ -74,7 +74,7 @@
 
 (defun clear-range ()
   (with-transaction (tr *db*)
-    (transaction-clear-range tr "Key 1" "Key 3"))
+    (transaction-clear tr "Key 1" "Key 3"))
   (with-transaction (tr *db*)
     (assert-equals 'key-selector-first-greater-or-equal
      (byteify "Key 3")

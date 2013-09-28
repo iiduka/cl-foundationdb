@@ -404,25 +404,19 @@
 
 (defsetf transaction-get transaction-set)
 
-(defun transaction-clear (transaction key)
-  (with-foreign-bytes (key-name key-name-length) (key-bytes key)
-    (fdb-transaction-clear (transaction-fdb-transaction transaction)
-                           key-name key-name-length)))
-
-(defun transaction-atomic-operate (transaction key param operation)
-  (with-foreign-bytes (key-name key-name-length) (key-bytes key)
-    (with-foreign-bytes (param-name param-name-length) (value-bytes param)
-      (fdb-transaction-atomic-op (transaction-fdb-transaction transaction)
-                                  key-name key-name-length
-                                  param-name param-name-length
-                                  operation))))
-
-(defun transaction-clear-range (transaction begin-key end-key)
-  (with-foreign-bytes (begin-key-name begin-key-name-length) (key-bytes begin-key)
-    (with-foreign-bytes (end-key-name end-key-name-length) (key-bytes end-key)
-      (fdb-transaction-clear-range (transaction-fdb-transaction transaction)
-                                   begin-key-name begin-key-name-length
-                                   end-key-name end-key-name-length))))
+(defun transaction-clear (transaction begin-key &optional (end-key nil end-key-p))
+  (when (and (not end-key-p) (typep begin-key 'range))
+    (psetq begin-key (range-begin-key begin-key)
+           end-key (range-end-key begin-key)))
+  (if (null end-key)
+      (with-foreign-bytes (key-name key-name-length) (key-bytes begin-key)
+        (fdb-transaction-clear (transaction-fdb-transaction transaction)
+                               key-name key-name-length))
+      (with-foreign-bytes (begin-key-name begin-key-name-length) (key-bytes begin-key)
+        (with-foreign-bytes (end-key-name end-key-name-length) (key-bytes end-key)
+          (fdb-transaction-clear-range (transaction-fdb-transaction transaction)
+                                       begin-key-name begin-key-name-length
+                                       end-key-name end-key-name-length)))))
 
 (defun transaction-add-conflict-range (transaction begin-key end-key
                                        &optional (type :write))
@@ -432,6 +426,14 @@
                                           begin-key-name begin-key-name-length
                                           end-key-name end-key-name-length
                                           type))))
+
+(defun transaction-atomic-operate (transaction key param operation)
+  (with-foreign-bytes (key-name key-name-length) (key-bytes key)
+    (with-foreign-bytes (param-name param-name-length) (value-bytes param)
+      (fdb-transaction-atomic-op (transaction-fdb-transaction transaction)
+                                  key-name key-name-length
+                                  param-name param-name-length
+                                  operation))))
 
 (defclass no-value-future (future) 
   ())

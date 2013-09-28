@@ -37,3 +37,8 @@
          (not (dotimes (i length)
                 (unless (= (aref bytes i) (aref prefix i))
                   (return t)))))))
+
+(defun subspace-range (subspace &optional item)
+  (range-starts-with (if (null item)
+                         (subspace-prefix subspace)
+                         (subspace-encode-key subspace item))))

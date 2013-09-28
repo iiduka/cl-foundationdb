@@ -42,7 +42,7 @@
 
 (defun counter-clear (counter tr)
   (with-slots (range) counter
-    (transaction-clear-range tr (range-begin-key range) (range-end-key range))))
+    (transaction-clear tr range)))
 
 (defun add-with-coalesce (counter tr x maybe-coalesce)
   (transaction-set tr (encode-new-key counter) (encode-value x))
