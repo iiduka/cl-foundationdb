@@ -560,10 +560,10 @@
   ((begin-key-selector :accessor range-query-begin-key-selector :initarg :begin-key-selector)
    (end-key-selector :accessor range-query-end-key-selector :initarg :end-key-selector)
    (limit :accessor range-query-limit :initarg :limit :initform nil)
-   (target-bytes :reader range-query-target-bytes :initarg :target-bytez :initform nil)
+   (target-bytes :reader range-query-target-bytes :initarg :target-bytes :initform nil)
    (mode :reader range-query-mode :initarg :mode :initform :iterator)
    (iteration :accessor range-query-iteration :initform 0)
-   (reverse-p :reader range-query-reverse-p :initarg :reverse :initform nil)
+   (reverse-p :reader range-query-reverse-p :initarg :reverse-p :initform nil)
    (more-p :accessor range-query-more-p :initform t)))
 
 (defun make-range-query (begin &optional end &rest args)

@@ -12,7 +12,8 @@
                    (:file "base" :depends-on ("c-api"))
                    (:file "tuple" :depends-on ("package"))
                    (:file "tuple-storage" :depends-on ("tuple" "base"))
-                   (:file "subspace" :depends-on ("tuple-storage"))))))
+                   (:file "subspace" :depends-on ("tuple-storage"))
+                   (:file "counter" :depends-on ("tuple-storage"))))))
 
 (pushnew :foundationdb *features*)
 

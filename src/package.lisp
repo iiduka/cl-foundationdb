@@ -81,4 +81,10 @@
    #:tuple-subtuple
    #:value-bytes
    #:with-transaction
+   #:make-counter
+   #:counter-get-transactional
+   #:counter-get-snapshot
+   #:counter-add
+   #:counter-set
+   #:counter-clear
 ))

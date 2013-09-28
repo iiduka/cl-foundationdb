@@ -91,7 +91,7 @@
    (byteify
     '(("Key 6" "6") ("Key 5" "5") ("Key 4" "4")))
    (with-transaction (tr *db*)
-     (transaction-range-query tr "Key 4" "Key 7" :reverse t)))
+     (transaction-range-query tr "Key 4" "Key 7" :reverse-p t)))
   (assert-equals 'range-query
    (byteify
     '(("Key 5" "5") ("Key 6" "6") ("Key 7" "7")))
