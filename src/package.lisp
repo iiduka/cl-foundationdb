@@ -8,12 +8,24 @@
    #:cluster-destroy
    #:cluster-open-database
    #:cluster-set-option
+   #:counter-add
+   #:counter-clear
+   #:counter-get-snapshot
+   #:counter-get-transactional
+   #:counter-set
    #:database
    #:database-close
    #:database-create-transaction
    #:database-destroy
    #:database-open
    #:database-set-option
+   #:directory-subspace
+   #:directory-subspace-delete
+   #:directory-subspace-exists-p
+   #:directory-subspace-list
+   #:directory-subspace-open
+   #:directory-subspace-path
+   #:directory-subspace-rename
    #:do-range-query
    #:fdb-error
    #:future-block-until-ready
@@ -31,8 +43,10 @@
    #:key-selector-last-less-than
    #:key-successor
    #:make-cluster
+   #:make-counter
    #:make-range
    #:make-range-query
+   #:make-root-directory
    #:make-subspace
    #:make-tuple
    #:map-range-query
@@ -40,6 +54,7 @@
    #:network-start
    #:network-stop
    #:range-starts-with
+   #:root-directory
    #:subspace
    #:subspace-contains-key-p
    #:subspace-decode-key
@@ -83,10 +98,4 @@
    #:tuple-subtuple
    #:value-bytes
    #:with-transaction
-   #:make-counter
-   #:counter-get-transactional
-   #:counter-get-snapshot
-   #:counter-add
-   #:counter-set
-   #:counter-clear
 ))
