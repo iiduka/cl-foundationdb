@@ -33,6 +33,11 @@
    (layer :reader directory-subspace-layer :initarg :layer :initform nil)
    (directory :initarg :directory)))
 
+(defmethod print-object ((obj directory-subspace) stream)
+  (print-unreadable-object (obj stream :type t)
+    (with-slots (path raw-prefix) obj
+      (format stream "~S ~S" (tuple-items path) raw-prefix))))
+
 (defgeneric directory-subspace-path (directory-subspace)
   (:method ((dir root-directory)) (make-tuple))
   (:method ((dir directory-subspace)) (slot-value dir 'path)))

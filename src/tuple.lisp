@@ -13,11 +13,14 @@
                                            :initial-contents items
                                            :fill-pointer t :adjustable t)))
 
+;;; Use when want fully decoded, not as accessor.
+(defun tuple-items (tuple)
+  (finish-decoding tuple)
+  (slot-value tuple 'items))
+  
 (defmethod print-object ((obj tuple) stream)
   (print-unreadable-object (obj stream :type t)
-    (finish-decoding obj)
-    (with-slots (items) obj
-      (write items :stream stream))))
+    (write (tuple-items obj) :stream stream)))
 
 (defun copy-tuple (tuple)
   (finish-decoding tuple)

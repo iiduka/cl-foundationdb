@@ -13,6 +13,7 @@
                    (:file "tuple" :depends-on ("package"))
                    (:file "tuple-storage" :depends-on ("tuple" "base"))
                    (:file "subspace" :depends-on ("tuple-storage"))
+                   (:file "directory" :depends-on ("subspace"))
                    (:file "counter" :depends-on ("tuple-storage"))))))
 
 (pushnew :foundationdb *features*)
