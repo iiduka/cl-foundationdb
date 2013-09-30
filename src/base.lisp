@@ -153,8 +153,6 @@
   ((fdb-transaction :reader transaction-fdb-transaction :initarg :fdb-transaction)
    (snapshot :reader transaction-snapshot-p :initarg :snapshot :initform nil)))
 
-;;; TODO: Is is actually useful to have the same transaction in both
-;;; snapthot and regular modes?
 (defun transaction-snapshot (transaction)
   (make-instance 'transaction
                  :fdb-transaction (transaction-fdb-transaction transaction)

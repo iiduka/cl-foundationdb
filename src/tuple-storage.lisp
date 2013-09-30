@@ -5,5 +5,7 @@
 (defmethod key-bytes ((key tuple)) (tuple-bytes key))
 (defmethod value-bytes ((value tuple)) (tuple-bytes value))
 
-(defun tuple-range (tuple &key prefix)
-  (range-starts-with (tuple-encode-item tuple :prefix prefix)))
+(defun tuple-range (tuple)
+  (let ((bytes (tuple-bytes tuple)))
+    (make-range (concatenate '(array (unsigned-byte 8) (*)) bytes '(#x00))
+                (concatenate '(array (unsigned-byte 8) (*)) bytes '(#xFF)))))

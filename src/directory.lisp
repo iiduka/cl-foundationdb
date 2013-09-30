@@ -51,7 +51,7 @@
              (directory-subspace-exists-p-internal directory (combine-paths path sub-path) tr)))
   (:method ((dir root-directory) (tr transaction) &optional sub-path)
            (or (null sub-path)
-               (directory-subspace-exists-p-internal dir sub-path tr))))
+               (directory-subspace-exists-p-internal dir (standardize-path sub-path) tr))))
 
 (defgeneric directory-subspace-open (directory-subspace tr sub-path
                                      &key if-exists if-does-not-exist layer prefix)
@@ -64,7 +64,7 @@
   (:method ((dir root-directory) (tr transaction) sub-path &rest args)
            (if (null sub-path)
                dir
-               (apply #'directory-subspace-open-internal dir sub-path tr args))))
+               (apply #'directory-subspace-open-internal dir (standardize-path sub-path) tr args))))
 
 (defgeneric directory-subspace-rename (directory-subspace tr path1 &optional path2)
   (:method (dir (db database) path1 &optional path2)
@@ -74,13 +74,13 @@
            (with-slots (directory path) dir
              (let (from to)
                (if (null path2)
-                   (setq from path to path1)
-                   (setq from (combine-paths path path1) to path2))
+                   (setq from path to (standardize-path path1))
+                   (setq from (combine-paths path path1) to (standardize-path path2)))
                (directory-subspace-rename-internal directory from to tr))))
   (:method ((dir root-directory) (tr transaction) path1 &optional path2)
            (when (null path2)
              (error "Cannot rename root directory as sub-space"))
-           (directory-subspace-rename-internal dir path1 path2 tr)))
+           (directory-subspace-rename-internal dir (standardize-path path1) (standardize-path path2) tr)))
 
 (defgeneric directory-subspace-delete (directory-subspace tr
                                        &key sub-path if-does-not-exist)
@@ -93,7 +93,7 @@
   (:method ((dir root-directory) (tr transaction) &rest args &key sub-path &allow-other-keys)
            (when (null sub-path)
              (error "Cannot delete root directory as sub-space"))
-           (apply #'directory-subspace-delete-internal dir sub-path tr args)))
+           (apply #'directory-subspace-delete-internal dir (standardize-path sub-path) tr args)))
 
 (defgeneric directory-subspace-list (directory-subspace tr &optional sub-path)
   (:method (dir (db database) &optional sub-path)
@@ -103,12 +103,19 @@
            (with-slots (directory path) dir
              (directory-subspace-list-internal directory (combine-paths path sub-path) tr)))
   (:method ((dir root-directory) (tr transaction) &optional sub-path)
-           (directory-subspace-list-internal dir (or sub-path (make-tuple)) tr)))
+           (directory-subspace-list-internal dir (standardize-path sub-path) tr)))
+
+(defun standardize-path (path)
+  (typecase path
+    (tuple path)
+    (list (apply #'make-tuple path))
+    (t (make-tuple path))))
 
 (defun combine-paths (path sub-path)
   (if (null sub-path)
       (or path (make-tuple))
       (let ((combined (copy-tuple path)))
+        (setq sub-path (standardize-path sub-path))
         (dotimes (i (tuple-length sub-path))
           (tuple-push combined (tuple-elt sub-path i)))
         combined)))
@@ -138,13 +145,19 @@
            (error "Directory ~S does not exist" path))
           (:create
            (when (null prefix)
-             (setq prefix (hca-allocate (slot-value dir 'allocator))))
+             (setq prefix (hca-allocate (slot-value dir 'allocator) tr)))
            (unless (prefix-free-p dir tr prefix)
              (error "Prefix ~S already in use" prefix))
            (multiple-value-bind (parent-path name)
                (split-path path)
              (let ((parent-node (if parent-path
-                                    (node-with-prefix dir parent-path)
+                                    (node-with-prefix dir
+                                                      ;; Recursively creating parent.
+                                                      ;; Have separate &key for that?
+                                                      (key-bytes
+                                                       (directory-subspace-open-internal
+                                                        dir parent-path tr
+                                                        :if-does-not-exist :create)))
                                     (slot-value dir 'root-node))))
                (transaction-set tr
                                 (subspace-encode-key (subspace parent-node *sub-dir-key*)
@@ -199,6 +212,21 @@
 (defun node-with-prefix (dir prefix)
   (and prefix (subspace (slot-value dir 'node-subspace) prefix)))
 
+(defun node-containing-key (dir tr key)
+  (with-slots (root-node node-subspace) dir
+    (if (key-starts-with key (subspace-prefix node-subspace))
+        root-node
+        (do-range-query ((k v) tr
+                         (range-begin-key (subspace-range node-subspace))
+                         (concatenate '(array (unsigned-byte 8) (*))
+                                      (subspace-encode-key node-subspace key)
+                                      '(#x00))
+                         :limit 1 :reverse-p t)
+          (declare (ignore v))
+          (let ((prev-prefix (tuple-elt (subspace-decode-key node-subspace k) 0)))
+            (when (key-starts-with key prev-prefix)
+              (return (make-subspace :raw-prefix k))))))))
+
 (defun contents-of-node (dir node path layer)
   (let ((prefix (tuple-elt (subspace-decode-key (slot-value dir 'node-subspace)
                                                 (key-bytes node)) 
@@ -240,9 +268,17 @@
     (error "Directory ~S created with incompatible layer" path)))
 
 (defun prefix-free-p (dir tr prefix)
-  (declare (ignore dir tr prefix))
-  t)
-
+  (cond ((zerop (length prefix)) nil)
+        ((not (null (node-containing-key dir tr prefix))) nil)
+        (t
+         (let ((node-subspace (slot-value dir 'node-subspace)))
+           (not (do-range-query ((key value) tr
+                                 (subspace-encode-key node-subspace prefix)
+                                 (subspace-encode-key node-subspace (key-successor prefix))
+                                 :limit 1 :reverse-p t) ; TODO: Why reverse?
+                  (declare (ignore key value))
+                  (return t)))))))
+                                
 (defun list-sub-dirs (dir tr node)
   (let ((sd (subspace node *sub-dir-key*)))
     (map-range-query 'list 
@@ -252,8 +288,47 @@
                      tr (subspace-range sd))))
 
 (defclass high-contention-allocator ()
-  ((subspace :initarg :subspace)))
+  ((counters)
+   (recent)
+   (random)))
 
-(defun hca-allocate (allocator)
-  (declare (ignore allocator))
-  (error "NIY"))
+(defmethod initialize-instance :after ((obj high-contention-allocator) &key subspace)
+  (with-slots (counters recent random) obj
+    (setf counters (subspace subspace 0)
+          recent (subspace subspace 1)
+          random (make-random-state t))))
+
+(defun hca-allocate (allocator tr)
+  (flet ((unpack-little-endian (bytes)
+           (let ((result 0))
+             (dotimes (i (length bytes))
+               (setf (ldb (byte 8 (* i 8)) result) (aref bytes i)))
+             result))
+         (window-size (start)
+           (cond ((< start 255) 64)
+                 ((< start 65535) 1024)
+                 (t 8192))))
+    (with-slots (counters recent random) allocator
+      (let ((start 0)
+            (count 0))
+        (do-range-query ((key value) (transaction-snapshot tr)
+                         (subspace-range counters) nil
+                         :limit 1 :reverse-p t)
+          (setq start (tuple-elt (subspace-decode-key counters key) 0)
+                count (unpack-little-endian value)))
+        (let ((window (window-size start)))
+          (when (>= (* (1+ count) 2) window)
+            (let ((begin (key-bytes counters))
+                  (end (concatenate '(array (unsigned-byte 8) (*))
+                                      (subspace-encode-key counters start)
+                                      '(#x00))))
+              (transaction-clear tr begin end))
+            (incf start window)
+            (transaction-clear tr (key-bytes recent) (subspace-encode-key recent start))
+            (setq window (window-size start)))
+          (loop
+             (let* ((candidate (+ start (random window random)))
+                    (k (subspace-encode-key recent candidate)))
+               (when (null (future-value (transaction-get tr k)))
+                 (transaction-set tr k (make-array 0 :element-type '(unsigned-byte 8)))
+                 (return (tuple-encode candidate))))))))))

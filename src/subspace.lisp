@@ -31,14 +31,18 @@
   (tuple-decode bytes :start (length (subspace-prefix subspace))))
 
 (defun subspace-contains-key-p (subspace bytes)
-  (let* ((prefix (subspace-prefix subspace))
-         (length (length prefix)))
+  (key-starts-with bytes (subspace-prefix subspace)))
+
+(defun key-starts-with (bytes prefix)
+  (let ((length (length prefix)))
     (and (>= (length bytes) length)
          (not (dotimes (i length)
                 (unless (= (aref bytes i) (aref prefix i))
                   (return t)))))))
 
 (defun subspace-range (subspace &optional item)
-  (range-starts-with (if (null item)
-                         (subspace-prefix subspace)
-                         (subspace-encode-key subspace item))))
+  (let ((bytes (if (null item)
+                   (subspace-prefix subspace)
+                   (subspace-encode-key subspace item))))
+    (make-range (concatenate '(array (unsigned-byte 8) (*)) bytes '(#x00))
+                (concatenate '(array (unsigned-byte 8) (*)) bytes '(#xFF)))))

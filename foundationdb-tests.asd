@@ -10,6 +10,7 @@
       :components ((:file "package")
                    (:file "basic-tests" :depends-on ("package"))
                    (:file "tuple-tests" :depends-on ("basic-tests"))
+                   (:file "directory-tests" :depends-on ("tuple-tests"))
                    (:file "counter-tests" :depends-on ("basic-tests"))
                    (:file "run-tests" :depends-on ("basic-tests" "tuple-tests" "counter-tests"))))))
 
