@@ -109,7 +109,7 @@
   (if (null sub-path)
       (or path (make-tuple))
       (let ((combined (copy-tuple path)))
-        (dotimes (i (length sub-path))
+        (dotimes (i (tuple-length sub-path))
           (tuple-push combined (tuple-elt sub-path i)))
         combined)))
 
@@ -240,6 +240,7 @@
     (error "Directory ~S created with incompatible layer" path)))
 
 (defun prefix-free-p (dir tr prefix)
+  (declare (ignore dir tr prefix))
   t)
 
 (defun list-sub-dirs (dir tr node)
@@ -254,4 +255,5 @@
   ((subspace :initarg :subspace)))
 
 (defun hca-allocate (allocator)
-  )
+  (declare (ignore allocator))
+  (error "NIY"))
