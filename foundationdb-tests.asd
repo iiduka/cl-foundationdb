@@ -4,7 +4,7 @@
     :description "FoundationDB Common Lisp tests"
     :version "0.0.1"
     :license "MIT"
-    :depends-on (:cffi :foundationdb)
+    :depends-on (:foundationdb)
     :components
     ((:module "tests"
       :components ((:file "package")
