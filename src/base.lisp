@@ -568,7 +568,8 @@
    (mode :reader range-query-mode :initarg :mode :initform :iterator)
    (iteration :accessor range-query-iteration :initform 0)
    (reverse-p :reader range-query-reverse-p :initarg :reverse-p :initform nil)
-   (more-p :accessor range-query-more-p :initform t)))
+   (more-p :accessor range-query-more-p :initform t)
+   (limit-reached-p :accessor range-query-limit-reached-p :initform nil)))
 
 (defun make-range-query (begin &optional end &rest args)
   (multiple-value-bind (begin-key-selector end-key-selector)
@@ -608,6 +609,7 @@
         (when (range-query-limit range-query)
           (decf (range-query-limit range-query) count)
           (when (<= (range-query-limit range-query) 0)
+            (setf (range-query-limit-reached-p range-query) t)
             (setq more-p nil)))
         (setf (range-query-more-p range-query) more-p)
         (when (and more-p (not (null key)))
@@ -652,7 +654,7 @@
         (future-destroy future)))
     (when (and result-type (null result))
       (setq result (make-sequence result-type 0)))
-    result))
+    (values result (range-query-limit-reached-p range-query))))
 
 (defmacro do-range-query (((key value) &rest args) &body body)
   `(block nil
