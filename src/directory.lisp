@@ -145,7 +145,9 @@
            (error "Directory ~S does not exist" path))
           (:create
            (when (null prefix)
-             (setq prefix (hca-allocate (slot-value dir 'allocator) tr)))
+             (setq prefix (with-slots (allocator content-subspace) dir
+                            (hca-allocate allocator tr 
+                                          (subspace-prefix content-subspace)))))
            (unless (prefix-free-p dir tr prefix)
              (error "Prefix ~S already in use" prefix))
            (multiple-value-bind (parent-path name)
@@ -299,7 +301,7 @@
           recent (subspace subspace 1)
           random (make-random-state t))))
 
-(defun hca-allocate (allocator tr)
+(defun hca-allocate (allocator tr &optional prefix)
   (flet ((unpack-little-endian (bytes)
            (let ((result 0))
              (dotimes (i (length bytes))
@@ -335,4 +337,4 @@
                     (k (subspace-encode-key recent candidate)))
                (when (null (future-value (transaction-get tr k)))
                  (transaction-set tr k (make-array 0 :element-type '(unsigned-byte 8)))
-                 (return (tuple-encode candidate))))))))))
+                 (return (tuple-encode-item candidate :prefix prefix))))))))))
