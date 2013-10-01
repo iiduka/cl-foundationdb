@@ -326,6 +326,9 @@
             (incf start window)
             (transaction-clear tr (key-bytes recent) (subspace-encode-key recent start))
             (setq window (window-size start)))
+          (transaction-atomic-operate tr (subspace-encode-key counters start) 
+                                      *little-endian-long-one* 
+                                      :add)
           (loop
              (let* ((candidate (+ start (random window random)))
                     (k (subspace-encode-key recent candidate)))
