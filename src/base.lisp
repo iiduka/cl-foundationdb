@@ -520,6 +520,10 @@
   ((begin-key :reader range-begin-key :initarg :begin-key)
    (end-key :reader range-end-key :initarg :end-key)))
 
+(defmethod print-object ((obj range) stream)
+  (print-unreadable-object (obj stream :type t)
+    (format stream "~S ~S" (range-begin-key obj) (range-end-key obj))))
+
 (defun make-range (begin-key end-key)
   (make-instance 'range :begin-key begin-key :end-key end-key))
 

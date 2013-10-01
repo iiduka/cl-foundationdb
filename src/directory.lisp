@@ -36,7 +36,7 @@
 (defmethod print-object ((obj directory-subspace) stream)
   (print-unreadable-object (obj stream :type t)
     (with-slots (path raw-prefix) obj
-      (format stream "~S ~S" (tuple-items path) raw-prefix))))
+      (format stream "~S ~S" (and path (tuple-items path)) raw-prefix))))
 
 (defgeneric directory-subspace-path (directory-subspace)
   (:method ((dir root-directory)) (make-tuple))
@@ -183,7 +183,7 @@
           (error "Parent directory of ~S does not exist" new-path))
         (transaction-set tr
                          (subspace-encode-key (subspace parent-node *sub-dir-key*) name)
-                         (contents-of-node dir old-node nil nil))))
+                         (subspace-prefix (contents-of-node dir old-node nil nil)))))
     (remove-from-parent dir tr old-path)
     (contents-of-node dir old-node new-path 
                       (future-value
@@ -237,18 +237,19 @@
 
 (defun find-node (dir tr path)
   (let ((node (slot-value dir 'root-node)))
-    (dotimes (i (tuple-length path))
-      (let ((prefix (subspace-encode-key (subspace node *sub-dir-key*)
-                                         (tuple-elt path i))))
-        (setq node (node-with-prefix dir (future-value (transaction-get tr prefix)))))
-      (when (null node)
-        (return-from find-node nil)))
+    (unless (null path)
+      (dotimes (i (tuple-length path))
+        (let ((prefix (subspace-encode-key (subspace node *sub-dir-key*)
+                                           (tuple-elt path i))))
+          (setq node (node-with-prefix dir (future-value (transaction-get tr prefix)))))
+        (when (null node)
+          (return-from find-node nil))))
     node))
 
 (defun remove-from-parent (dir tr path)
   (multiple-value-bind (parent-path name)
       (split-path path)
-    (let ((parent (find-node dir tr (tuple-subtuple path 0 parent-path))))
+    (let ((parent (find-node dir tr parent-path)))
       (transaction-clear tr 
                          (subspace-encode-key (subspace parent *sub-dir-key*) name)))))
 
