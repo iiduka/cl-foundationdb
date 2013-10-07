@@ -4,8 +4,8 @@
 
 (defclass tuple ()
   ((items :initarg :items)
-   (bytes :initform nil)
-   (decoding-bytes :initform nil)
+   (octets :initform nil)
+   (decoding-octets :initform nil)
    (decoding-index)))
 
 (defun make-tuple (&rest items)
@@ -31,9 +31,9 @@
 
 (defun tuple-push (tuple item)
   (finish-decoding tuple)
-  (with-slots (items bytes) tuple
+  (with-slots (items octets) tuple
     (vector-push-extend item items)
-    (setf bytes nil)))
+    (setf octets nil)))
 
 (defun tuple-elt (tuple index)
   (finish-decoding tuple index)
@@ -51,12 +51,12 @@
             do (setf (aref nitems j) (aref items i)))
       (make-instance 'tuple :items nitems))))
 
-(defun tuple-bytes (tuple)
-  (with-slots (bytes items) tuple
-    (when (null bytes)
-      (finish-decoding tuple)           ; For when started with subsequence bytes.
-      (setf bytes (encode items)))
-    bytes))
+(defun tuple-octets (tuple)
+  (with-slots (octets items) tuple
+    (when (null octets)
+      (finish-decoding tuple)           ; For when started with subsequence octets.
+      (setf octets (encode items)))
+    octets))
 
 (defun tuple-length (tuple)
   (finish-decoding tuple)
@@ -64,71 +64,71 @@
     (length items)))
 
 (defun tuple-equalp (tuple1 tuple2)
-  (eq (compare-bytes tuple1 tuple2) :equal))
+  (eq (compare-octets tuple1 tuple2) :equal))
 
 (defun tuple-not-equalp (tuple1 tuple2)
-  (not (eq (compare-bytes tuple1 tuple2) :equal)))
+  (not (eq (compare-octets tuple1 tuple2) :equal)))
 
 (defun tuple-greaterp (tuple1 tuple2)
-  (eq (compare-bytes tuple1 tuple2) :greater))
+  (eq (compare-octets tuple1 tuple2) :greater))
 
 (defun tuple-not-greaterp (tuple1 tuple2)
-  (not (eq (compare-bytes tuple1 tuple2) :greater)))
+  (not (eq (compare-octets tuple1 tuple2) :greater)))
 
 (defun tuple-lessp (tuple1 tuple2)
-  (eq (compare-bytes tuple1 tuple2) :less))
+  (eq (compare-octets tuple1 tuple2) :less))
 
 (defun tuple-not-lessp (tuple1 tuple2)
-  (not (eq (compare-bytes tuple1 tuple2) :less)))
+  (not (eq (compare-octets tuple1 tuple2) :less)))
 
 (defun tuple-encode (&rest items)
   (cond ((null items) nil)
         ((and (null (rest items))
               (typep (first items) 'tuple))
-         (tuple-bytes (first items)))
+         (tuple-octets (first items)))
         (t
          (encode items))))
 
-(defun tuple-encode-item (item &key bytes (index 0) prefix)
-  (encode item bytes index prefix))
+(defun tuple-encode-item (item &key octets (index 0) prefix)
+  (encode item octets index prefix))
 
 (defun tuple-encoded-length (tuple)
-  (length (tuple-bytes tuple)))         ; TODO: Could optimize when bytes not yet done.
+  (length (tuple-octets tuple)))         ; TODO: Could optimize when octets not yet done.
 
-(defun tuple-decode (bytes &key (start 0) end)
+(defun tuple-decode (octets &key (start 0) end)
   (when (null end)
-    (setq end (length bytes)))
+    (setq end (length octets)))
   (let ((tuple (make-instance 'tuple)))
-    (with-slots ((tbytes bytes) decoding-bytes decoding-index items) tuple
+    (with-slots ((toctets octets) decoding-octets decoding-index items) tuple
       ;; Need zero-based vector that we can modify for nul unescaping.
-      (if (and (= start 0) (= end (length bytes)) (null (find #xFF bytes)))
-          (setf tbytes bytes
-                decoding-bytes bytes)
-          (setf decoding-bytes (subseq bytes start end)))
+      (if (and (= start 0) (= end (length octets)) (null (find #xFF octets)))
+          (setf toctets octets
+                decoding-octets octets)
+          (setf decoding-octets (subseq octets start end)))
       (setf decoding-index 0)
-      (setf items (make-array (decoded-length decoding-bytes) 
+      (setf items (make-array (decoded-length decoding-octets) 
                               :fill-pointer 0 :adjustable t)))
     tuple))
 
-;;; Decode more of decoding-bytes, at least up to given items index.
+;;; Decode more of decoding-octets, at least up to given items index.
 (defun finish-decoding (tuple &optional limit)
-  (with-slots (decoding-bytes decoding-index items) tuple
-    (loop while (and (not (null decoding-bytes))
+  (with-slots (decoding-octets decoding-index items) tuple
+    (loop while (and (not (null decoding-octets))
                      (or (null limit)
                          (<= (fill-pointer items) limit)))
       do (multiple-value-bind (item index)
-             (decode decoding-bytes decoding-index)
+             (decode decoding-octets decoding-index)
            (vector-push-extend item items)
-           (if (>= index (length decoding-bytes))
-               (setf decoding-bytes nil
+           (if (>= index (length decoding-octets))
+               (setf decoding-octets nil
                      decoding-index nil)
                (setf decoding-index index))))))
       
-(defun compare-bytes (tuple1 tuple2)
-  (let* ((bytes1 (tuple-bytes tuple1))
-         (length1 (length bytes1))
-         (bytes2 (tuple-bytes tuple2))
-         (length2 (length bytes2))
+(defun compare-octets (tuple1 tuple2)
+  (let* ((octets1 (tuple-octets tuple1))
+         (length1 (length octets1))
+         (octets2 (tuple-octets tuple2))
+         (length2 (length octets2))
          (index 0))
     (loop
       (cond ((= index length1)
@@ -136,17 +136,17 @@
             ((= index length2)
              (return :greater))
             (t
-             (let ((byte1 (aref bytes1 index))
-                   (byte2 (aref bytes2 index)))
-               (cond ((= byte1 byte2))
-                     ((< byte1 byte2) (return :less))
+             (let ((octet1 (aref octets1 index))
+                   (octet2 (aref octets2 index)))
+               (cond ((= octet1 octet2))
+                     ((< octet1 octet2) (return :less))
                      (t (return :greater))))))
         (incf index))))
     
 ;;; Simple encoding scheme:
-;;; 1 - byte array, nul-terminated, nuls escaped by following FF
+;;; 1 - octet array, nul-terminated, nuls escaped by following FF
 ;;; 2 - UTF-8 stream, similarly
-;;; (20 + n) - non-negative integer end-endian as n bytes
+;;; (20 + n) - non-negative integer end-endian as n octets
 ;;; (20 - n) - negative integer, similarly
 
 ;;; Encoding routines accept tuples and sequences and flatten for convenience.
@@ -172,67 +172,67 @@
          (incf total (encoded-length (aref value i))))
        total))))
           
-(defun encode (value &optional bytes (index 0) prefix)
-  (when (null bytes)
-    (setq bytes (make-array (+ (encoded-length value) (length prefix))
-                            :element-type '(unsigned-byte 8))))
-  (macrolet ((add-byte (b)
+(defun encode (value &optional octets (index 0) prefix)
+  (when (null octets)
+    (setq octets (make-array (+ (encoded-length value) (length prefix))
+                             :element-type '(unsigned-byte 8))))
+  (macrolet ((add-octet (b)
                `(progn
-                 (setf (aref bytes index) ,b)
+                 (setf (aref octets index) ,b)
                  (incf index))))
     (when prefix
       (dotimes (i (length prefix))
-        (add-byte (elt prefix i))))
+        (add-octet (elt prefix i))))
     (flet ((append-and-escape-nuls (src)
              (dotimes (i (length src))
                (let ((b (aref src i)))
-                 (add-byte b)
+                 (add-octet b)
                  (when (zerop b)
-                   (add-byte #xFF))))
-             (add-byte #x00)))
+                   (add-octet #xFF))))
+             (add-octet #x00)))
       (etypecase value
         (string
-         (add-byte #x02)
+         (add-octet #x02)
          ;; No exported way to encode to array.
          (append-and-escape-nuls (babel:string-to-octets value)))
         ((array (unsigned-byte 8) (*))
-         (add-byte #x01)
+         (add-octet #x01)
          (append-and-escape-nuls value))
         (integer
          (if (minusp value)
              (let* ((n (ceiling (integer-length (- value)) 8))
                     (v (+ value (1- (ash 1 (* n 8))))))
-               (add-byte (- #x14 n))
+               (add-octet (- #x14 n))
                (dotimes (i n)
-                 (add-byte (ldb (byte 8 (* 8 (- n i 1))) v))))
+                 (add-octet (ldb (byte 8 (* 8 (- n i 1))) v))))
              (let ((n (ceiling (integer-length value) 8)))
-               (add-byte (+ #x14 n))
+               (add-octet (+ #x14 n))
                (dotimes (i n)
-                 (add-byte (ldb (byte 8 (* 8 (- n i 1))) value))))))
+                 (add-octet (ldb (byte 8 (* 8 (- n i 1))) value))))))
         (tuple
-         (let ((tbytes (tuple-bytes value)))
-           (dotimes (i (length tbytes))
-             (add-byte (aref tbytes i)))))
+         (let ((toctets (tuple-octets value)))
+           (dotimes (i (length toctets))
+             (add-octet (aref toctets i)))))
         (list
          (dolist (item value)
-           (multiple-value-setq (bytes index) (encode item bytes index))))
+           (multiple-value-setq (octets index) (encode item octets index))))
         (vector
          (dotimes (i (length value))
-           (multiple-value-setq (bytes index) (encode (aref value i) bytes index)))))))
-  (values bytes index))
+           (multiple-value-setq (octets index) (encode (aref value i) octets index)))))))
+  (values octets index))
 
-(defun decoded-length (bytes &optional (start 0) (end (length bytes)))
+(defun decoded-length (octets &optional (start 0) (end (length octets)))
   (let ((count 0)
         (index start))
     (loop while (< index end) 
-      do (let ((code (aref bytes index)))
+      do (let ((code (aref octets index)))
            (incf index)
            (cond ((or (= code #x01) (= code #x02))
                   (loop
-                    (let ((b (aref bytes index)))
+                    (let ((b (aref octets index)))
                       (incf index)
                       (when (zerop b)
-                        (if (and (< index end) (= (aref bytes index) #xFF))
+                        (if (and (< index end) (= (aref octets index) #xFF))
                             (incf index)
                             (return))))))
                  ((<= #x0C code #x13)
@@ -258,31 +258,31 @@
          (incf rp)
          (incf wp)))))
 
-(defun decode (bytes &optional (start 0) (end (length bytes)))
-  (let ((code (aref bytes start))
+(defun decode (octets &optional (start 0) (end (length octets)))
+  (let ((code (aref octets start))
         (index (1+ start))
         value)
     (cond ((= code #x01)
            (multiple-value-bind (string-end nindex)
-               (unescape-nuls bytes index end)
-             (setq value (subseq bytes index string-end)
+               (unescape-nuls octets index end)
+             (setq value (subseq octets index string-end)
                    index nindex)))
           ((= code #x02)
            (multiple-value-bind (string-end nindex)
-               (unescape-nuls bytes index end)
-             (setq value (babel:octets-to-string bytes :start index :end string-end)
+               (unescape-nuls octets index end)
+             (setq value (babel:octets-to-string octets :start index :end string-end)
                    index nindex)))
           ((<= #x14 code #x1C)
            (let ((n (- code #x14)))
              (setq value 0)
              (dotimes (i n)
-               (setf (ldb (byte 8 (* 8 (- n i 1))) value) (aref bytes index))
+               (setf (ldb (byte 8 (* 8 (- n i 1))) value) (aref octets index))
                (incf index))))
           ((<= #x0C code #x13)
            (let ((n (- #x14 code)))
              (setq value 0)
              (dotimes (i n)
-               (setf (ldb (byte 8 (* 8 (- n i 1))) value) (aref bytes index))
+               (setf (ldb (byte 8 (* 8 (- n i 1))) value) (aref octets index))
                (incf index))
              (decf value (1- (ash 1 (* n 8))))))
           (t

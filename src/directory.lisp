@@ -21,7 +21,7 @@
 (defmethod initialize-instance :after ((obj root-directory) &key)
   (with-slots (root-node node-subspace allocator) obj
     ;; The root node is the one whose contents are the node subspace
-    (setf root-node (subspace node-subspace (key-bytes node-subspace))
+    (setf root-node (subspace node-subspace (key-octets node-subspace))
           allocator (make-instance 'high-contention-allocator
                                    :subspace (subspace root-node *high-contention-key*)))))
 
@@ -156,7 +156,7 @@
                                     (node-with-prefix dir
                                                       ;; Recursively creating parent.
                                                       ;; Have separate &key for that?
-                                                      (key-bytes
+                                                      (key-octets
                                                        (directory-subspace-open-internal
                                                         dir parent-path tr
                                                         :if-does-not-exist :create)))
@@ -231,7 +231,7 @@
 
 (defun contents-of-node (dir node path layer)
   (let ((prefix (tuple-elt (subspace-decode-key (slot-value dir 'node-subspace)
-                                                (key-bytes node)) 
+                                                (key-octets node)) 
                            0)))
     ;; TODO: What about content-subspace? See community site bug report.
     (make-instance 'directory-subspace :directory dir :path path 
@@ -302,10 +302,10 @@
           random (make-random-state t))))
 
 (defun hca-allocate (allocator tr &optional prefix)
-  (flet ((unpack-little-endian (bytes)
+  (flet ((unpack-little-endian (octets)
            (let ((result 0))
-             (dotimes (i (length bytes))
-               (setf (ldb (byte 8 (* i 8)) result) (aref bytes i)))
+             (dotimes (i (length octets))
+               (setf (ldb (byte 8 (* i 8)) result) (aref octets i)))
              result))
          (window-size (start)
            (cond ((< start 255) 64)
@@ -321,13 +321,13 @@
                 count (unpack-little-endian value)))
         (let ((window (window-size start)))
           (when (>= (* (1+ count) 2) window)
-            (let ((begin (key-bytes counters))
+            (let ((begin (key-octets counters))
                   (end (concatenate '(array (unsigned-byte 8) (*))
                                       (subspace-encode-key counters start)
                                       '(#x00))))
               (transaction-clear tr begin end))
             (incf start window)
-            (transaction-clear tr (key-bytes recent) (subspace-encode-key recent start))
+            (transaction-clear tr (key-octets recent) (subspace-encode-key recent start))
             (setq window (window-size start)))
           (transaction-atomic-operate tr (subspace-encode-key counters start) 
                                       *little-endian-long-one* 

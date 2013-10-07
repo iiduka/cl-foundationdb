@@ -34,7 +34,7 @@
    #:future-destroy
    #:future-ready-p
    #:future-value
-   #:key-bytes
+   #:key-octets
    #:key-selector
    #:key-selector-add
    #:key-selector-first-greater-or-equal
@@ -80,7 +80,7 @@
    #:transaction-set-option
    #:transaction-snapshot
    #:transaction-watch
-   #:tuple-bytes
+   #:tuple-octets
    #:tuple-decode
    #:tuple-elt
    #:tuple-encode
@@ -96,6 +96,6 @@
    #:tuple-push
    #:tuple-range
    #:tuple-subtuple
-   #:value-bytes
+   #:value-octets
    #:with-transaction
 ))

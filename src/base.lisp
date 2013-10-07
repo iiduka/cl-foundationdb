@@ -49,11 +49,11 @@
   #-(or sbcl ccl) (error "Do not know how to run threads on this system")
   )
 
-(defun foreign-bytes-to-lisp (length value)
-  (let ((bytes (make-array length :element-type '(unsigned-byte 8))))
+(defun foreign-octets-to-lisp (length value)
+  (let ((octets (make-array length :element-type '(unsigned-byte 8))))
     (dotimes (i length)
-      (setf (aref bytes i) (mem-aref value :uint8 i)))
-    bytes))
+      (setf (aref octets i) (mem-aref value :uint8 i)))
+    octets))
 
 (defvar *foreign-encoding* :utf-8)
 
@@ -364,38 +364,38 @@
                  "getting value")
     (when (mem-ref ppresent 'fdb-bool-t)
       (prog1
-          (foreign-bytes-to-lisp (mem-ref plength :int) (mem-ref pvalue :pointer))
+          (foreign-octets-to-lisp (mem-ref plength :int) (mem-ref pvalue :pointer))
         (fdb-future-release-memory (future-fdb-future future))))))
 
-(defgeneric key-bytes (key)
-  (:documentation "Get a byte array for key")
+(defgeneric key-octets (key)
+  (:documentation "Get an octet array for key")
   (:method ((key sequence)) key)
   (:method ((key string)) (babel:string-to-octets key :encoding *foreign-encoding*)))
 
-(defmacro with-foreign-bytes ((pointer length) (bytes-fun value) &body body)
-  (let ((bytes-var (gensym "BYTES"))
+(defmacro with-foreign-octets ((pointer length) (octets-fun value) &body body)
+  (let ((octets-var (gensym "OCTETS"))
         (i-var (gensym "I")))
-    `(let ((,bytes-var (,bytes-fun ,value)))
-      (with-foreign-pointer (,pointer (length ,bytes-var) ,length)
+    `(let ((,octets-var (,octets-fun ,value)))
+      (with-foreign-pointer (,pointer (length ,octets-var) ,length)
         (dotimes (,i-var ,length)
-          (setf (mem-aref ,pointer :uint8 ,i-var) (aref ,bytes-var ,i-var)))
+          (setf (mem-aref ,pointer :uint8 ,i-var) (aref ,octets-var ,i-var)))
         . ,body))))
 
 (defun transaction-get (transaction key)
-  (let ((fdb-future (with-foreign-bytes (key-name key-name-length) (key-bytes key)
+  (let ((fdb-future (with-foreign-octets (key-name key-name-length) (key-octets key)
                       (fdb-transaction-get (transaction-fdb-transaction transaction)
                                            key-name key-name-length
                                            (transaction-snapshot-p transaction)))))
     (make-instance 'get-future :fdb-future fdb-future)))
 
-(defgeneric value-bytes (value)
-  (:documentation "Get a byte array for value")
+(defgeneric value-octets (value)
+  (:documentation "Get an octet array for value")
   (:method ((value sequence)) value)
   (:method ((value string)) (babel:string-to-octets value :encoding *foreign-encoding*)))
 
 (defun transaction-set (transaction key value)
-  (with-foreign-bytes (key-name key-name-length) (key-bytes key)
-    (with-foreign-bytes (value-name value-name-length) (value-bytes value)
+  (with-foreign-octets (key-name key-name-length) (key-octets key)
+    (with-foreign-octets (value-name value-name-length) (value-octets value)
       (fdb-transaction-set (transaction-fdb-transaction transaction)
                            key-name key-name-length
                            value-name value-name-length))))
@@ -407,27 +407,27 @@
     (psetq begin-key (range-begin-key begin-key)
            end-key (range-end-key begin-key)))
   (if (null end-key)
-      (with-foreign-bytes (key-name key-name-length) (key-bytes begin-key)
+      (with-foreign-octets (key-name key-name-length) (key-octets begin-key)
         (fdb-transaction-clear (transaction-fdb-transaction transaction)
                                key-name key-name-length))
-      (with-foreign-bytes (begin-key-name begin-key-name-length) (key-bytes begin-key)
-        (with-foreign-bytes (end-key-name end-key-name-length) (key-bytes end-key)
+      (with-foreign-octets (begin-key-name begin-key-name-length) (key-octets begin-key)
+        (with-foreign-octets (end-key-name end-key-name-length) (key-octets end-key)
           (fdb-transaction-clear-range (transaction-fdb-transaction transaction)
                                        begin-key-name begin-key-name-length
                                        end-key-name end-key-name-length)))))
 
 (defun transaction-add-conflict-range (transaction begin-key end-key
                                        &optional (type :write))
-  (with-foreign-bytes (begin-key-name begin-key-name-length) (key-bytes begin-key)
-    (with-foreign-bytes (end-key-name end-key-name-length) (key-bytes end-key)
+  (with-foreign-octets (begin-key-name begin-key-name-length) (key-octets begin-key)
+    (with-foreign-octets (end-key-name end-key-name-length) (key-octets end-key)
       (fdb-transaction-add-conflict-range (transaction-fdb-transaction transaction)
                                           begin-key-name begin-key-name-length
                                           end-key-name end-key-name-length
                                           type))))
 
 (defun transaction-atomic-operate (transaction key param operation)
-  (with-foreign-bytes (key-name key-name-length) (key-bytes key)
-    (with-foreign-bytes (param-name param-name-length) (value-bytes param)
+  (with-foreign-octets (key-name key-name-length) (key-octets key)
+    (with-foreign-octets (param-name param-name-length) (value-octets param)
       (fdb-transaction-atomic-op (transaction-fdb-transaction transaction)
                                   key-name key-name-length
                                   param-name param-name-length
@@ -439,7 +439,7 @@
 (defmethod future-ready-value ((future no-value-future)) t)
 
 (defun transaction-watch (transaction key)
-  (let ((fdb-future (with-foreign-bytes (key-name key-name-length) (key-bytes key)
+  (let ((fdb-future (with-foreign-octets (key-name key-name-length) (key-octets key)
                       (fdb-transaction-watch (transaction-fdb-transaction transaction)
                                              key-name key-name-length))))
     (make-instance 'no-value-future :fdb-future fdb-future)))
@@ -462,7 +462,7 @@
       strings)))
 
 (defun transaction-addresses-for-key (transaction key)
-  (let ((fdb-future (with-foreign-bytes (key-name key-name-length) (key-bytes key)
+  (let ((fdb-future (with-foreign-octets (key-name key-name-length) (key-octets key)
                       (fdb-transaction-get-addresses-for-key (transaction-fdb-transaction transaction)
                                                              key-name key-name-length))))
     (make-instance 'string-array-future :fdb-future fdb-future)))
@@ -473,16 +473,16 @@
    (offset :reader key-selector-offset  :initarg :offset)))
 
 (defun key-selector-last-less-than (key)
-  (make-instance 'key-selector :key (key-bytes key) :or-equal nil :offset 0))
+  (make-instance 'key-selector :key (key-octets key) :or-equal nil :offset 0))
 
 (defun key-selector-last-less-or-equal (key)
-  (make-instance 'key-selector :key (key-bytes key) :or-equal t :offset 0))
+  (make-instance 'key-selector :key (key-octets key) :or-equal t :offset 0))
 
 (defun key-selector-first-greater-than (key)
-  (make-instance 'key-selector :key (key-bytes key) :or-equal t :offset +1))
+  (make-instance 'key-selector :key (key-octets key) :or-equal t :offset +1))
 
 (defun key-selector-first-greater-or-equal (key)
-  (make-instance 'key-selector :key (key-bytes key) :or-equal nil :offset +1))
+  (make-instance 'key-selector :key (key-octets key) :or-equal nil :offset +1))
 
 (defun key-selector-add (key-selector offset)
   (make-instance 'key-selector :key (key-selector-key key-selector) :or-equal (key-selector-or-equal key-selector) :offset (+ (key-selector-offset key-selector) offset)))
@@ -490,7 +490,7 @@
 (defmacro with-foreign-key-selector ((name name-length or-equal offset) key-selector &body body)
   (let ((ks-var (gensym "KS")))
     `(let ((,ks-var ,key-selector))
-       (with-foreign-bytes (,name ,name-length) (key-bytes (key-selector-key ,ks-var))
+       (with-foreign-octets (,name ,name-length) (key-octets (key-selector-key ,ks-var))
          (let ((,or-equal (key-selector-or-equal ,ks-var))
                (,offset (key-selector-offset ,ks-var)))
            . ,body)))))
@@ -505,7 +505,7 @@
                                      pvalue plength)
                  "getting value")
     (prog1
-        (foreign-bytes-to-lisp (mem-ref plength :int) (mem-ref pvalue :pointer))
+        (foreign-octets-to-lisp (mem-ref plength :int) (mem-ref pvalue :pointer))
       (fdb-future-release-memory (future-fdb-future future)))))
 
 (defun transaction-key (transaction key-selector)
@@ -527,18 +527,18 @@
 (defun make-range (begin-key end-key)
   (make-instance 'range :begin-key begin-key :end-key end-key))
 
-(defun key-successor (bytes)
-  (let ((length (length bytes)))
-    (loop while (and (plusp length) (= (aref bytes (1- length)) #xFF)) do
+(defun key-successor (octets)
+  (let ((length (length octets)))
+    (loop while (and (plusp length) (= (aref octets (1- length)) #xFF)) do
       (decf length))
     (when (zerop length)
-      (error "There is no successor to ~S" bytes))
-    (let ((copy (subseq bytes 0 length)))
+      (error "There is no successor to ~S" octets))
+    (let ((copy (subseq octets 0 length)))
       (incf (aref copy (1- length)))
       copy)))
 
 (defun range-starts-with (prefix)
-  (let* ((begin (key-bytes prefix))
+  (let* ((begin (key-octets prefix))
          (end (key-successor begin)))
     (make-range begin end)))
 
@@ -564,7 +564,7 @@
   ((begin-key-selector :accessor range-query-begin-key-selector :initarg :begin-key-selector)
    (end-key-selector :accessor range-query-end-key-selector :initarg :end-key-selector)
    (limit :accessor range-query-limit :initarg :limit :initform nil)
-   (target-bytes :reader range-query-target-bytes :initarg :target-bytes :initform nil)
+   (target-octets :reader range-query-target-octets :initarg :target-octets :initform nil)
    (mode :reader range-query-mode :initarg :mode :initform :iterator)
    (iteration :accessor range-query-iteration :initform 0)
    (reverse-p :reader range-query-reverse-p :initarg :reverse-p :initform nil)
@@ -594,10 +594,10 @@
            (result (if result-type (make-sequence result-type count)))
            key value)
       (dotimes (i count)
-        (setq key (foreign-bytes-to-lisp
+        (setq key (foreign-octets-to-lisp
                    (foreign-slot-value kv '(:struct fdb-key-value) 'key-length)
                    (foreign-slot-value kv '(:struct fdb-key-value) 'key))
-              value (foreign-bytes-to-lisp 
+              value (foreign-octets-to-lisp 
                      (foreign-slot-value kv '(:struct fdb-key-value) 'value-length)
                      (foreign-slot-value kv '(:struct fdb-key-value) 'value)))
         (let ((elem (funcall function key value)))
@@ -632,7 +632,7 @@
                                           end-key-name end-key-name-length
                                           end-or-equal end-offset
                                           (or (range-query-limit range-query) 0)
-                                          (or (range-query-target-bytes range-query) 0)
+                                          (or (range-query-target-octets range-query) 0)
                                           (range-query-mode range-query)
                                           (incf (range-query-iteration range-query))
                                           (transaction-snapshot-p transaction)
