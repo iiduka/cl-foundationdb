@@ -3,7 +3,7 @@
 (in-package :foundationdb-tests)
 
 (defvar *items* (list 1 0 -1 123456789 "hello"
-                      (coerce '(#\snowman #\nul) 'string)
+                      (coerce '(#\u2603 #\nul) 'string)
                       (coerce '(1 2 3 0 #xFE #xFF) '(array (unsigned-byte 8) (*)))))
 
 (defun encode-decode ()
