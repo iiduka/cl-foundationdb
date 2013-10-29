@@ -2,7 +2,7 @@
 
 (in-package :foundationdb-tests)
 
-(defvar *items* (list 1 0 -1 123456789 "hello"
+(defvar *items* (list 1 0 -1 123456789 "hello" nil
                       (coerce '(#\u2603 #\nul) 'string)
                       (coerce '(1 2 3 0 #xFE #xFF) '(array (unsigned-byte 8) (*)))))
 

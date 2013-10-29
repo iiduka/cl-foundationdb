@@ -198,6 +198,8 @@
         ((array (unsigned-byte 8) (*))
          (add-octet #x01)
          (append-and-escape-nuls value))
+        (null
+         (add-octet #x00))
         (integer
          (if (minusp value)
              (let* ((n (ceiling (integer-length (- value)) 8))
@@ -235,6 +237,7 @@
                         (if (and (< index end) (= (aref octets index) #xFF))
                             (incf index)
                             (return))))))
+                 ((= code #x00))
                  ((<= #x0C code #x13)
                   (incf index (- #x14 code)))
                  ((<= #x14 code #x1C)
@@ -272,6 +275,8 @@
                (unescape-nuls octets index end)
              (setq value (babel:octets-to-string octets :start index :end string-end)
                    index nindex)))
+          ((= code #x00)
+           (setq value nil))
           ((<= #x14 code #x1C)
            (let ((n (- code #x14)))
              (setq value 0)
